@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tok Go - Sri Lanka Ride Map</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+  
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+  <style>
+    :root {
+      --primary: #3b82f6;
+      --secondary: #10b981;
+      --dark: #121212;
+      --darker: #0a0a0a;
+      --light: #f1f5f9;
+    }
+    
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      background: var(--dark);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      color: #e0e0e0;
+      overflow: hidden;
+    }
+    
+    #app-container {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+    
+    #map {
+      height: 100%;
+      width: 100%;
+      position: relative;
+      z-index: 0;
+      filter: brightness(0.9);
+      transition: all 0.3s ease;
+    }
+    
+    #sidebar {
+      width: 280px;
+      height: 100%;
+      background: rgba(18, 18, 18, 0.95);
+      backdrop-filter: blur(10px);
+      border-right: 1px solid rgba(255, 255, 255, 0.15);
+      z-index: 1000;
+      padding: 1.5rem;
+      color: #e0e0e0;
+      box-shadow: 2px 0 32px rgba(0, 0, 0, 0.5);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    #sidebar.hidden {
+      transform: translateX(-100%);
+      opacity: 0;
+      pointer-events: none;
+    }
+    
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+    }
+    
+    .sidebar-header h2 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin: 0;
+    }
+    
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 1.5rem;
+    }
+    
+    .logo-icon {
+      background: var(--primary);
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      color: white;
+    }
+    
+    .logo-text {
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--primary);
+      margin-top: 1.5rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .vehicle-option {
+      display: flex;
+      align-items: center;
+      padding: 0.75rem;
+      margin-bottom: 0.5rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .vehicle-option:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--primary);
+    }
+    
+    .vehicle-option.selected {
+      background: rgba(59, 130, 246, 0.2);
+      border-color: var(--primary);
+    }
+    
+    .vehicle-icon {
+      width: 40px;
+      height: 40px;
+      margin-right: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      color: var(--primary);
+      background: rgba(59, 130, 246, 0.15);
+      border-radius: 8px;
+    }
+    
+    .vehicle-details {
+      flex: 1;
+    }
+    
+    .vehicle-name {
+      font-weight: 600;
+      font-size: 1rem;
+      margin-bottom: 4px;
+    }
+    
+    .vehicle-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      color: #a0a0a0;
+    }
+    
+    .vehicle-price {
+      color: var(--secondary);
+      font-weight: 700;
+    }
+    
+    .control-panel {
+      position: fixed;
+      bottom: 1.5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1100;
+      background: rgba(18, 18, 18, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 0.75rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      max-width: 95vw;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 1.2rem;
+      width: 90%;
+    }
+    
+    .input-group {
+      flex: 1;
+      min-width: 250px;
+    }
+    
+    .input-group label {
+      font-weight: 600;
+      color: #e0e0e0;
+      display: block;
+      margin-bottom: 0.5rem;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .input-group input {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #444;
+      border-radius: 8px;
+      font-size: 1rem;
+      background-color: #1e1e1e;
+      color: #eee;
+      transition: border-color 0.3s;
+    }
+    
+    .input-group input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 0.75rem;
+    }
+    
+    .control-panel button {
+      padding: 10px 20px;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      white-space: nowrap;
+      cursor: pointer;
+      color: white;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    
+    #goRideBtn { 
+      background-color: var(--primary); 
+      min-width: 120px;
+    }
+    
+    #goRideBtn:hover { background-color: #2563eb; }
+    
+    #restartRide { 
+      background-color: var(--secondary); 
+      min-width: 120px;
+    }
+    
+    #restartRide:hover { background-color: #059669; }
+    
+    #pickupMapBtn { 
+      background-color: #8b5cf6; 
+      padding: 8px 16px; 
+    }
+    
+    #pickupMapBtn:hover { background-color: #7c3aed; }
+    
+    #pickupMapBtn.active {
+      background-color: #f59e0b;
+      animation: pulse 1.5s infinite;
+    }
+    
+    #toggleSidebar {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      z-index: 1200;
+      background: rgba(18, 18, 18, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 8px;
+      padding: 10px;
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .leaflet-container { color: white !important; }
+    
+    .leaflet-popup-content, .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+      color: white !important;
+      background-color: #222 !important;
+    }
+    
+    .leaflet-tooltip {
+      color: white !important;
+      background-color: rgba(0,0,0,0.7) !important;
+    }
+    
+    .leaflet-control, .leaflet-control a {
+      color: white !important;
+    }
+    
+    .leaflet-routing-container {
+      color: white !important;
+      background-color: rgba(18,18,18,0.9) !important;
+    }
+    
+    .custom-city-label span {
+      color: white;
+      font-weight: 700;
+      font-size: 14px;
+      text-shadow: 0 0 3px black;
+      user-select: none;
+      pointer-events: none;
+    }
+    
+    .pickup-marker {
+      background-color: var(--primary);
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      border: 3px solid white;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+      animation: pulse 2s infinite;
+    }
+    
+    #route-instructions {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      z-index: 1000;
+      background: rgba(18, 18, 18, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 0.75rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      padding: 1rem;
+      color: #e0e0e0;
+      max-width: 300px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      max-height: 80vh;
+      overflow-y: auto;
+      display: none;
+    }
+    
+    #route-instructions h2 {
+      margin-top: 0;
+      color: var(--primary);
+      font-size: 1.25rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    #route-instructions h2 button {
+      background: none;
+      border: none;
+      color: #a0a0a0;
+      cursor: pointer;
+      font-size: 1.2rem;
+    }
+    
+    #route-instructions ul {
+      padding-left: 0;
+      list-style: none;
+    }
+    
+    #route-instructions li {
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.05);
+    }
+    
+    #route-instructions li.active {
+      background: rgba(59, 130, 246, 0.2);
+      border-left: 3px solid var(--primary);
+    }
+    
+    #route-instructions li span {
+      font-weight: 600;
+      display: block;
+      margin-bottom: 4px;
+    }
+    
+    .route-summary {
+      position: fixed;
+      top: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      background: rgba(18, 18, 18, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 0.75rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      padding: 1rem;
+      color: #e0e0e0;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      gap: 1.5rem;
+      min-width: 300px;
+      display: none;
+    }
+    
+    .summary-item {
+      text-align: center;
+    }
+    
+    .summary-label {
+      font-size: 0.9rem;
+      color: #a0a0a0;
+      margin-bottom: 4px;
+    }
+    
+    .summary-value {
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+    
+    #distance-value { color: var(--primary); }
+    #duration-value { color: var(--secondary); }
+    #fare-value { color: #f59e0b; }
+    
+    .vehicle-badge {
+      display: inline-block;
+      background: rgba(59, 130, 246, 0.2);
+      color: var(--primary);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      margin-top: 4px;
+    }
+    
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+      70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+    }
+    
+    @keyframes bounce {
+      0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+      40% { transform: translateY(-20px); }
+      60% { transform: translateY(-10px); }
+    }
+    
+    .vehicle-icon-marker {
+      background: rgba(59, 130, 246, 0.3);
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid var(--primary);
+      color: var(--primary);
+      font-size: 1.4rem;
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+    }
+    
+    .promo-banner {
+      background: linear-gradient(90deg, #8b5cf6, #ec4899);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      text-align: center;
+      margin-top: 1rem;
+      animation: promoPulse 3s infinite;
+    }
+    
+    @keyframes promoPulse {
+      0% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(139, 92, 246, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
+    }
+    
+    .close-btn {
+      background: none;
+      border: none;
+      color: #a0a0a0;
+      cursor: pointer;
+      font-size: 1.2rem;
+      position: absolute;
+      top: 10px;
+      right: 10px;
+    }
+    
+    @media (max-width: 768px) {
+      #sidebar {
+        position: fixed;
+        width: 80%;
+        height: 100%;
+        left: 0;
+        top: 0;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+      }
+      
+      #sidebar.active {
+        transform: translateX(0);
+      }
+      
+      .control-panel {
+        flex-direction: column;
+        width: 95%;
+        bottom: 0.5rem;
+      }
+      
+      .input-group {
+        width: 100%;
+      }
+      
+      .button-group {
+        width: 100%;
+        justify-content: center;
+      }
+      
+      .route-summary {
+        top: auto;
+        bottom: 5rem;
+        width: 90%;
+      }
+      
+      #route-instructions {
+        top: auto;
+        bottom: 1rem;
+        left: 1rem;
+        right: 1rem;
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="app-container">
+    <div id="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-container">
+          <div class="logo-icon">
+            <i class="fas fa-taxi"></i>
+          </div>
+          <div class="logo-text">Tok Go</div>
+        </div>
+        <button class="close-btn" id="closeSidebar"><i class="fas fa-times"></i></button>
+      </div>
+      
+      <div class="section-title">
+        <i class="fas fa-route"></i>
+        <span>Your Route</span>
+      </div>
+      
+      <div class="route-info">
+        <div><strong>From:</strong> <span id="from-value">Not set</span></div>
+        <div><strong>To:</strong> <span id="to-value">Not set</span></div>
+      </div>
+      
+      <div class="section-title">
+        <i class="fas fa-car"></i>
+        <span>Select Vehicle</span>
+      </div>
+      
+      <div class="vehicle-option selected" data-vehicle="tuktuk">
+        <div class="vehicle-icon">
+          <i class="fas fa-motorcycle"></i>
+        </div>
+        <div class="vehicle-details">
+          <div class="vehicle-name">Tuk Tuk</div>
+          <div class="vehicle-info">
+            <span>4 min away</span>
+            <span class="vehicle-price">Rs 250</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="vehicle-option" data-vehicle="car">
+        <div class="vehicle-icon">
+          <i class="fas fa-car"></i>
+        </div>
+        <div class="vehicle-details">
+          <div class="vehicle-name">Standard Car</div>
+          <div class="vehicle-info">
+            <span>6 min away</span>
+            <span class="vehicle-price">Rs 450</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="vehicle-option" data-vehicle="van">
+        <div class="vehicle-icon">
+          <i class="fas fa-shuttle-van"></i>
+        </div>
+        <div class="vehicle-details">
+          <div class="vehicle-name">Van</div>
+          <div class="vehicle-info">
+            <span>8 min away</span>
+            <span class="vehicle-price">Rs 650</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="vehicle-option" data-vehicle="truck">
+        <div class="vehicle-icon">
+          <i class="fas fa-truck"></i>
+        </div>
+        <div class="vehicle-details">
+          <div class="vehicle-name">Truck</div>
+          <div class="vehicle-info">
+            <span>12 min away</span>
+            <span class="vehicle-price">Rs 1200</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="section-title">
+        <i class="fas fa-percentage"></i>
+        <span>Promotions</span>
+      </div>
+      
+      <div class="promo-banner">
+        Use code <strong>TOKGO20</strong> for 20% off your first ride!
+      </div>
+      
+      <div class="section-title">
+        <i class="fas fa-history"></i>
+        <span>Recent Trips</span>
+      </div>
+      
+      <div class="recent-trips">
+        <div class="trip-item">
+          <div>Colombo to Kandy</div>
+          <div class="vehicle-badge">Tuk Tuk - Rs 2500</div>
+        </div>
+        <div class="trip-item">
+          <div>Galle to Matara</div>
+          <div class="vehicle-badge">Car - Rs 1200</div>
+        </div>
+      </div>
+    </div>
+    
+    <div id="map"></div>
+    
+    <button id="toggleSidebar"><i class="fas fa-bars"></i></button>
+    
+    <div class="route-summary" id="route-summary">
+      <div class="summary-item">
+        <div class="summary-label">Distance</div>
+        <div class="summary-value" id="distance-value">0 km</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-label">Duration</div>
+        <div class="summary-value" id="duration-value">0 mins</div>
+      </div>
+      <div class="summary-item">
+        <div class="summary-label">Fare</div>
+        <div class="summary-value" id="fare-value">Rs 0</div>
+      </div>
+    </div>
+    
+    <div id="route-instructions">
+      <h2>
+        <span>Route Instructions</span>
+        <button id="closeInstructions"><i class="fas fa-times"></i></button>
+      </h2>
+      <ul id="instructions-list"></ul>
+    </div>
+    
+    <section class="control-panel">
+      <div class="input-group">
+        <label for="startInput"><i class="fas fa-location-dot"></i> Pickup Location</label>
+        <div style="display: flex; gap: 0.5rem;">
+          <input type="text" id="startInput" placeholder="Enter pickup location" value="Colombo" />
+          <button id="pickupMapBtn"><i class="fas fa-map-marker-alt"></i></button>
+        </div>
+      </div>
+      
+      <div class="input-group">
+        <label for="endInput"><i class="fas fa-flag-checkered"></i> Destination</label>
+        <input type="text" id="endInput" placeholder="Enter destination" value="Kandy" list="cityList" />
+        <datalist id="cityList">
+          <option value="Colombo">
+          <option value="Kandy">
+          <option value="Galle">
+          <option value="Jaffna">
+          <option value="Negombo">
+          <option value="Batticaloa">
+          <option value="Anuradhapura">
+          <option value="Trincomalee">
+          <option value="Nuwara Eliya">
+          <option value="Matara">
+          <option value="Kurunegala">
+        </datalist>
+      </div>
+      
+      <div class="button-group">
+        <button id="goRideBtn"><i class="fas fa-play"></i> Go Ride</button>
+        <button id="restartRide"><i class="fas fa-redo"></i> Restart</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+  <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.min.js"></script>
+
+  <script>
+    // Vehicle fare structure (base fare + per km rate)
+    const vehicleFares = {
+      tuktuk: { base: 50, perKm: 30, icon: 'fas fa-motorcycle', name: 'Tuk Tuk' },
+      car: { base: 100, perKm: 50, icon: 'fas fa-car', name: 'Standard Car' },
+      van: { base: 150, perKm: 70, icon: 'fas fa-shuttle-van', name: 'Van' },
+      truck: { base: 200, perKm: 100, icon: 'fas fa-truck', name: 'Truck' }
+    };
+    
+    // Major Sri Lankan cities with coordinates
+    const cities = [
+      { name: "Colombo", coords: [6.9271, 79.8612] },
+      { name: "Kandy", coords: [7.2906, 80.6337] },
+      { name: "Galle", coords: [6.0535, 80.2170] },
+      { name: "Jaffna", coords: [9.6615, 80.0255] },
+      { name: "Negombo", coords: [7.2081, 79.8359] },
+      { name: "Batticaloa", coords: [7.7150, 81.6786] },
+      { name: "Anuradhapura", coords: [8.3114, 80.4037] },
+      { name: "Trincomalee", coords: [8.5853, 81.2152] },
+      { name: "Nuwara Eliya", coords: [6.9497, 80.7894] },
+      { name: "Matara", coords: [5.9484, 80.5353] },
+      { name: "Kurunegala", coords: [7.4869, 80.3642] }
+    ];
+    
+    // Initialize the map
+    const sriLankaBounds = L.latLngBounds(
+      L.latLng(5.9, 79.7),
+      L.latLng(10.1, 82.1)
+    );
+
+    const map = L.map('map', {
+      maxBounds: sriLankaBounds,
+      maxBoundsViscosity: 0.8,
+      minZoom: 7,
+      maxZoom: 19,
+      zoomControl: true
+    }).setView([7.8731, 80.7718], 8);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© <a href="https://carto.com/attributions">CARTO</a> © OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(map);
+    
+    // Add geocoder control
+    L.Control.geocoder({
+      defaultMarkGeocode: false,
+      position: 'topleft',
+      placeholder: 'Search location...',
+      errorMessage: 'Location not found'
+    }).on('markgeocode', function(e) {
+      map.fitBounds(e.geocode.bbox);
+    }).addTo(map);
+
+    // Add city markers
+    cities.forEach(city => {
+      const marker = L.marker(city.coords, {
+        icon: L.divIcon({
+          className: 'custom-city-label',
+          html: `<span>${city.name}</span>`,
+          iconSize: [100, 20],
+          iconAnchor: [50, 10],
+        })
+      }).addTo(map);
+      
+      marker.bindPopup(`<b>${city.name}</b><br>Sri Lanka`);
+    });
+
+    // Vehicle icons for map markers
+    const vehicleIcons = {
+      tuktuk: L.divIcon({
+        className: 'vehicle-icon-marker',
+        html: '<i class="fas fa-motorcycle"></i>',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
+      }),
+      car: L.divIcon({
+        className: 'vehicle-icon-marker',
+        html: '<i class="fas fa-car"></i>',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
+      }),
+      van: L.divIcon({
+        className: 'vehicle-icon-marker',
+        html: '<i class="fas fa-shuttle-van"></i>',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
+      }),
+      truck: L.divIcon({
+        className: 'vehicle-icon-marker',
+        html: '<i class="fas fa-truck"></i>',
+        iconSize: [40, 40],
+        iconAnchor: [20, 20]
+      })
+    };
+
+    // Application state
+    let currentVehicle = 'tuktuk';
+    let vehicleMarker = null;
+    let control = null;
+    let routeCoords = [];
+    let animationIndex = 0;
+    let animationTimer = null;
+    let pickupMarker = null;
+    let isSettingPickup = false;
+    let currentRoute = null;
+
+    // Handle vehicle selection
+    const vehicleOptions = document.querySelectorAll('.vehicle-option');
+    vehicleOptions.forEach(option => {
+      option.addEventListener('click', function() {
+        vehicleOptions.forEach(opt => opt.classList.remove('selected'));
+        this.classList.add('selected');
+        currentVehicle = this.getAttribute('data-vehicle');
+        
+        if (vehicleMarker && routeCoords.length > 0) {
+          vehicleMarker.setIcon(vehicleIcons[currentVehicle]);
+          updateFareDisplay();
+          restartRide();
+        }
+      });
+    });
+
+    // Function to create a custom pickup marker
+    function createPickupMarker(latlng) {
+      return L.marker(latlng, {
+        icon: L.divIcon({
+          className: 'pickup-marker',
+          html: '<div></div>',
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        })
+      });
+    }
+
+    // Function to toggle pickup selection mode
+    function togglePickupSelection() {
+      isSettingPickup = !isSettingPickup;
+      const btn = document.getElementById('pickupMapBtn');
+      if (isSettingPickup) {
+        btn.classList.add('active');
+        btn.innerHTML = '<i class="fas fa-map-marker-alt"></i>';
+        map.getContainer().style.cursor = 'crosshair';
+      } else {
+        btn.classList.remove('active');
+        btn.innerHTML = '<i class="fas fa-map-marker-alt"></i>';
+        map.getContainer().style.cursor = '';
+      }
+    }
+
+    // Handle map click for setting pickup location
+    map.on('click', function(e) {
+      if (isSettingPickup) {
+        const latlng = e.latlng;
+        if (pickupMarker) map.removeLayer(pickupMarker);
+        pickupMarker = createPickupMarker(latlng).addTo(map);
+        
+        // Find the nearest city for display
+        let nearestCity = 'Custom Location';
+        let minDistance = Infinity;
+        
+        cities.forEach(city => {
+          const distance = map.distance(latlng, city.coords);
+          if (distance < minDistance) {
+            minDistance = distance;
+            nearestCity = city.name;
+          }
+        });
+        
+        document.getElementById('startInput').value = nearestCity;
+        document.getElementById('from-value').textContent = nearestCity;
+        togglePickupSelection();
+        goRide(); // Update route when pickup is set
+      }
+    });
+
+    // Geocoding function
+    async function geocode(location) {
+      return new Promise((resolve) => {
+        // Find city coordinates
+        const city = cities.find(c => c.name.toLowerCase() === location.toLowerCase());
+        if (city) {
+          resolve(L.latLng(city.coords));
+          return;
+        }
+        
+        // Default to Colombo if not found
+        resolve(L.latLng(6.9271, 79.8612));
+      });
+    }
+
+    // Clear current route and markers
+    function clearRoute() {
+      if (control) {
+        map.removeControl(control);
+        control = null;
+      }
+      if (vehicleMarker) {
+        map.removeLayer(vehicleMarker);
+        vehicleMarker = null;
+      }
+      clearTimeout(animationTimer);
+      animationIndex = 0;
+      routeCoords = [];
+      document.getElementById('route-instructions').style.display = 'none';
+      document.getElementById('route-summary').style.display = 'none';
+    }
+
+    // Animate vehicle along the route
+    function animateVehicle() {
+      if (animationIndex < routeCoords.length) {
+        vehicleMarker.setLatLng(routeCoords[animationIndex]);
+        
+        // Highlight current instruction
+        const instructions = document.querySelectorAll('#instructions-list li');
+        instructions.forEach((li, idx) => {
+          li.classList.remove('active');
+          if (idx === Math.floor(animationIndex / 50)) {
+            li.classList.add('active');
+          }
+        });
+        
+        animationIndex++;
+        animationTimer = setTimeout(animateVehicle, 100);
+      }
+    }
+    
+    // Update fare display based on distance and vehicle
+    function updateFareDisplay() {
+      if (!currentRoute) return;
+      
+      const distance = currentRoute.summary.totalDistance / 1000; // in km
+      const fareData = vehicleFares[currentVehicle];
+      const fare = Math.round(fareData.base + (distance * fareData.perKm));
+      
+      document.getElementById('fare-value').textContent = `Rs ${fare}`;
+      
+      // Update the selected vehicle price in sidebar
+      const selectedOption = document.querySelector('.vehicle-option.selected');
+      if (selectedOption) {
+        const priceElement = selectedOption.querySelector('.vehicle-price');
+        if (priceElement) {
+          priceElement.textContent = `Rs ${fare}`;
+        }
+      }
+    }
+
+    // Calculate and display route
+    async function goRide() {
+      clearRoute();
+      try {
+        const startText = document.getElementById('startInput').value.trim();
+        const endText = document.getElementById('endInput').value.trim();
+        
+        if (!startText || !endText) {
+          alert("Please enter both pickup and destination locations.");
+          return;
+        }
+        
+        document.getElementById('from-value').textContent = startText;
+        document.getElementById('to-value').textContent = endText;
+        
+        const startLatLng = await geocode(startText);
+        const endLatLng = await geocode(endText);
+
+        if (!pickupMarker) {
+          pickupMarker = createPickupMarker(startLatLng).addTo(map);
+        } else {
+          pickupMarker.setLatLng(startLatLng);
+        }
+        
+        vehicleMarker = L.marker(startLatLng, { icon: vehicleIcons[currentVehicle] }).addTo(map);
+
+        control = L.Routing.control({
+          waypoints: [startLatLng, endLatLng],
+          createMarker: () => null,
+          addWaypoints: false,
+          lineOptions: { 
+            styles: [{ 
+              color: '#3b82f6', 
+              weight: 5,
+              opacity: 0.8
+            }] 
+          },
+          routeWhileDragging: false,
+          showAlternatives: false,
+          fitSelectedRoutes: true,
+          formatter: new L.Routing.Formatter({
+            language: 'en',
+            unit: 'kilometers'
+          })
+        }).addTo(map);
+
+        control.on('routesfound', function(e) {
+          const routes = e.routes;
+          if (routes && routes.length > 0) {
+            currentRoute = routes[0];
+            routeCoords = currentRoute.coordinates;
+            
+            // Calculate total distance and time
+            const totalDistance = (currentRoute.summary.totalDistance / 1000).toFixed(1);
+            const totalTime = Math.round(currentRoute.summary.totalTime / 60);
+            
+            // Update route summary
+            document.getElementById('distance-value').textContent = `${totalDistance} km`;
+            document.getElementById('duration-value').textContent = `${totalTime} mins`;
+            document.getElementById('route-summary').style.display = 'flex';
+            
+            // Update fare
+            updateFareDisplay();
+
+            // Populate route instructions
+            const instructions = currentRoute.instructions;
+            const instructionsList = document.getElementById('instructions-list');
+            instructionsList.innerHTML = '';
+            
+            instructions.forEach(instruction => {
+              const li = document.createElement('li');
+              li.innerHTML = `<span>${instruction.text}</span>${(instruction.distance / 1000).toFixed(1)} km, ${Math.round(instruction.time / 60)} mins`;
+              instructionsList.appendChild(li);
+            });
+            
+            document.getElementById('route-instructions').style.display = 'block';
+            animateVehicle();
+          }
+        });
+      } catch (err) {
+        console.error(err);
+        alert("Error calculating route. Please try again.");
+      }
+    }
+
+    // Restart the ride animation
+    function restartRide() {
+      if (!vehicleMarker || routeCoords.length === 0) return;
+      clearTimeout(animationTimer);
+      animationIndex = 0;
+      vehicleMarker.setLatLng(routeCoords[0]);
+      vehicleMarker.setIcon(vehicleIcons[currentVehicle]);
+      animateVehicle();
+    }
+
+    // Initialize with a sample route
+    setTimeout(() => {
+      document.getElementById('startInput').value = "Colombo";
+      document.getElementById('endInput').value = "Kandy";
+      document.getElementById('from-value').textContent = "Colombo";
+      document.getElementById('to-value').textContent = "Kandy";
+      goRide();
+    }, 1000);
+
+    // Event listeners
+    document.getElementById('goRideBtn').addEventListener('click', goRide);
+    document.getElementById('restartRide').addEventListener('click', restartRide);
+    document.getElementById('pickupMapBtn').addEventListener('click', togglePickupSelection);
+    document.getElementById('closeInstructions').addEventListener('click', () => {
+      document.getElementById('route-instructions').style.display = 'none';
+    });
+    
+    // Toggle sidebar on mobile
+    document.getElementById('toggleSidebar').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('active');
+    });
+    
+    document.getElementById('closeSidebar').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.remove('active');
+    });
+    
+    // Update initial prices with random times
+    function updateInitialPrices() {
+      const options = document.querySelectorAll('.vehicle-option');
+      options.forEach(option => {
+        const timeElement = option.querySelector('.vehicle-info span:first-child');
+        if (timeElement) {
+          const vehicle = option.getAttribute('data-vehicle');
+          const min = vehicle === 'tuktuk' ? 4 : vehicle === 'car' ? 6 : vehicle === 'van' ? 8 : 12;
+          const max = min + 3;
+          const time = Math.floor(Math.random() * (max - min + 1)) + min;
+          timeElement.textContent = `${time} min away`;
+        }
+      });
+    }
+    
+    updateInitialPrices();
+  </script>
+</body>
+</html>
